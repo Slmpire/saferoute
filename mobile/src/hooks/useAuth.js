@@ -4,10 +4,12 @@ import {
   signInWithEmailAndPassword,
   signOut,
   createUserWithEmailAndPassword,
+  getAuth,
 } from 'firebase/auth';
-import { auth } from '../services/firebase';
-import { getProfile, registerUser } from '../services/api';
+import { app, db } from '../services/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
+const auth = getAuth(app);
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -20,8 +22,10 @@ export function AuthProvider({ children }) {
       if (firebaseUser) {
         setUser(firebaseUser);
         try {
-          const res = await getProfile();
-          setProfile(res.data);
+          const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
+          if (snap.exists()) {
+            setProfile(snap.data());
+          }
         } catch {
           setProfile(null);
         }
@@ -36,16 +40,14 @@ export function AuthProvider({ children }) {
 
   async function login(email, password) {
     const cred = await signInWithEmailAndPassword(auth, email, password);
-    const res = await getProfile();
-    setProfile(res.data);
+    const snap = await getDoc(doc(db, 'users', cred.user.uid));
+    if (snap.exists()) setProfile(snap.data());
     return cred;
   }
 
   async function signup(email, password, profileData) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
-    await registerUser(profileData);
-    const res = await getProfile();
-    setProfile(res.data);
+    // Profile will be created via backend /users/register
     return cred;
   }
 
@@ -56,7 +58,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, profile, loading, login, signup, logout, auth }}>
       {children}
     </AuthContext.Provider>
   );
